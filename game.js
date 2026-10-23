@@ -56,6 +56,52 @@ const SONGS = [
     patterns: { A: '0.1.2.3.', B: '3.2.1.0.', C: '1.0.3.2.', D: '2.3.0.1.' },
     section: ['A', 'B', 'C', 'A', 'D', 'B', 'A', 'C'],
   },
+  {
+    title: 'Overdrive',
+    bpm: 170,
+    chords: [
+      { bass: 65.41, pad: [130.81, 155.56, 196.0] },   // Cm
+      { bass: 103.83, pad: [207.65, 261.63, 311.13] }, // Ab
+      { bass: 77.78, pad: [155.56, 196.0, 233.08] },   // Eb
+      { bass: 116.54, pad: [233.08, 293.66, 349.23] }, // Bb
+    ],
+    patterns: { A: '0.1.2.3.', B: '3.2.1.0.', C: '0.2.0.3.', D: '1.3.2.0.' },
+    section: ['A', 'B', 'C', 'A', 'D', 'B', 'A', 'C'],
+  },
+  {
+    title: 'Warp Speed',
+    bpm: 190,
+    chords: [
+      { bass: 98.0, pad: [196.0, 233.08, 293.66] },   // Gm
+      { bass: 77.78, pad: [155.56, 196.0, 233.08] },  // Eb
+      { bass: 87.31, pad: [174.61, 220.0, 261.63] },  // F
+      { bass: 73.42, pad: [146.83, 185.0, 220.0] },   // D
+    ],
+    patterns: {
+      W1: '0.1.2.3.0.1.2.3.',
+      W2: '0.2.1.3.0.2.1.3.',
+      W3: '0...1...2...3...',
+      W4: '3.1.2.0.3.1.2.0.',
+    },
+    section: ['W1', 'W2', 'W3', 'W1', 'W4', 'W2', 'W3', 'W4'],
+  },
+  {
+    title: 'Hyperdrive',
+    bpm: 210,
+    chords: [
+      { bass: 73.42, pad: [146.83, 174.61, 220.0] },   // Dm
+      { bass: 116.54, pad: [233.08, 293.66, 349.23] }, // Bb
+      { bass: 130.81, pad: [261.63, 329.63, 392.0] },  // C
+      { bass: 110.0, pad: [220.0, 277.18, 329.63] },   // A
+    ],
+    patterns: {
+      H1: '0.1.2.3.0.1.2.3.',
+      H2: '0...2...1...3...',
+      H3: '3.2.1.0.3.2.1.0.',
+      H4: '0.3.1.2.0.3.1.2.',
+    },
+    section: ['H1', 'H2', 'H1', 'H3', 'H2', 'H4', 'H1', 'H3'],
+  },
 ];
 
 // Timing for the selected song. setupSong() fills these in.
@@ -118,11 +164,13 @@ function buildChart() {
   const chart = [];
   for (let bar = 0; bar < BARS; bar++) {
     const pattern = current.patterns[current.section[bar % current.section.length]];
-    for (let slot = 0; slot < 8; slot++) {
+    // A pattern has 8 slots (eighth notes) or 16 slots (sixteenth notes) per bar.
+    const slotLen = BAR / pattern.length;
+    for (let slot = 0; slot < pattern.length; slot++) {
       const symbol = pattern[slot];
       if (symbol === '.') continue;
       chart.push({
-        time: LEAD_IN + bar * BAR + slot * STEP,
+        time: LEAD_IN + bar * BAR + slot * slotLen,
         lane: Number(symbol),
         judged: false,
       });

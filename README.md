@@ -8,6 +8,15 @@ Hit the falling notes on the strum line as they reach it.
 Open `index.html` in any modern browser (Chrome, Edge, Firefox, Safari).
 No build step or server is needed.
 
+## Deploy to Vercel
+
+The game is static files, so it needs no build step.
+
+1. Go to https://vercel.com/new and sign in with GitHub.
+2. Import the `virajmera/FNF` repository.
+3. Leave the defaults. `vercel.json` already sets the output directory to the repo root.
+4. Click **Deploy**. Vercel gives you a live URL, and each push to `main` redeploys automatically.
+
 ## Controls
 
 | Key            | Lane |

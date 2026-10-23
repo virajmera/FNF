@@ -3,8 +3,8 @@
 
 const canvas = document.getElementById('game');
 const g2d = canvas.getContext('2d');
-const W = canvas.width;
-const H = canvas.height;
+let W = 0;
+let H = 0;
 
 const KEY_TO_LANE = {
   ArrowLeft: 0,
@@ -13,7 +13,9 @@ const KEY_TO_LANE = {
   ArrowRight: 3,
 };
 const LANE_COLORS = ['#c24dff', '#2fb8ff', '#3ddc6b', '#ff4d6d'];
-const LANE_LABELS = ['←', '↓', '↑', '→'];
+// Arrow rotation per lane: left, down, up, right (the arrow shape points up by default).
+const ARROW_ANGLES = [-Math.PI / 2, Math.PI, 0, Math.PI / 2];
+const ARROW_SHAPE = [[0, -1], [0.9, 0], [0.4, 0], [0.4, 1], [-0.4, 1], [-0.4, 0], [-0.9, 0]];
 
 // Song timing
 const SONG = { title: 'Neon Rush', bpm: 120 };
@@ -24,12 +26,12 @@ const LEAD_IN = 2;            // seconds before the first note
 const BARS = 32;
 const SONG_END = LEAD_IN + BARS * BAR + 1;
 
-// Play field
-const SPEED = 450;            // pixels per second
-const STRUM_Y = 500;
+// Play field. SPEED, STRUM_Y and LANE_LEFT depend on the window size, so resize() sets them.
+let SPEED = 450;              // pixels per second
+let STRUM_Y = 500;
+let LANE_LEFT = 0;
 const LANE_W = 110;
-const LANE_LEFT = (W - 4 * LANE_W) / 2;
-const NOTE_W = 84;
+const ARROW_SIZE = 44;
 const NOTE_H = 34;
 
 const HIT_WINDOWS = { sick: 0.045, good: 0.09, bad: 0.135 };
@@ -284,32 +286,16 @@ function draw() {
 
   // Receptors on the strum line
   for (let lane = 0; lane < 4; lane++) {
-    const x = laneX(lane) - NOTE_W / 2;
     const flashing = now - laneFlash[lane] < 100;
-    g2d.fillStyle = flashing ? LANE_COLORS[lane] : 'rgba(255, 255, 255, 0.08)';
-    g2d.strokeStyle = LANE_COLORS[lane];
-    g2d.lineWidth = 3;
-    g2d.beginPath();
-    g2d.roundRect(x, STRUM_Y - NOTE_H / 2, NOTE_W, NOTE_H, 10);
-    g2d.fill();
-    g2d.stroke();
+    drawArrow(lane, STRUM_Y, flashing ? LANE_COLORS[lane] : 'rgba(255, 255, 255, 0.08)', LANE_COLORS[lane]);
   }
 
   // Falling notes
   for (const note of notes) {
     if (note.judged) continue;
     const y = STRUM_Y - (note.time - songTime) * SPEED;
-    if (y < -NOTE_H || y > H + NOTE_H) continue;
-    const x = laneX(note.lane) - NOTE_W / 2;
-    g2d.fillStyle = LANE_COLORS[note.lane];
-    g2d.beginPath();
-    g2d.roundRect(x, y - NOTE_H / 2, NOTE_W, NOTE_H, 10);
-    g2d.fill();
-    g2d.fillStyle = 'rgba(0, 0, 0, 0.45)';
-    g2d.font = '700 16px system-ui, sans-serif';
-    g2d.textAlign = 'center';
-    g2d.textBaseline = 'middle';
-    g2d.fillText(LANE_LABELS[note.lane], laneX(note.lane), y);
+    if (y < -ARROW_SIZE || y > H + ARROW_SIZE) continue;
+    drawArrow(note.lane, y, LANE_COLORS[note.lane], '#ffffff');
   }
 
   drawHud(now);
@@ -318,6 +304,40 @@ function draw() {
 function laneX(lane) {
   return LANE_LEFT + lane * LANE_W + LANE_W / 2;
 }
+
+function drawArrow(lane, y, fill, stroke) {
+  g2d.save();
+  g2d.translate(laneX(lane), y);
+  g2d.rotate(ARROW_ANGLES[lane]);
+  g2d.beginPath();
+  ARROW_SHAPE.forEach(([x, py], i) => {
+    if (i === 0) g2d.moveTo(x * ARROW_SIZE, py * ARROW_SIZE);
+    else g2d.lineTo(x * ARROW_SIZE, py * ARROW_SIZE);
+  });
+  g2d.closePath();
+  g2d.fillStyle = fill;
+  g2d.fill();
+  g2d.strokeStyle = stroke;
+  g2d.lineWidth = 3;
+  g2d.stroke();
+  g2d.restore();
+}
+
+// Match the canvas to the window so the play field fills it, sharp on high-DPI screens.
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  g2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  LANE_LEFT = (W - 4 * LANE_W) / 2;
+  STRUM_Y = H * 0.83;
+  SPEED = H * 0.75;
+}
+
+window.addEventListener('resize', resize);
+resize();
 
 function drawHud(now) {
   g2d.textAlign = 'left';

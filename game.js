@@ -106,9 +106,8 @@ const SONGS = [
 
 // Timing for the selected song. setupSong() fills these in.
 let current = SONGS[0];
-let BEAT = 0.5;
-let BAR = 2;
-let STEP = 0.25;
+let barStart = [];            // seconds from the lead-in to the start of each bar
+let barLen = [];              // seconds per bar; the tempo rises across the song
 let SONG_END = 0;
 const LEAD_IN = 2;            // seconds before the first note
 const BARS = 32;
@@ -152,12 +151,29 @@ const laneFlash = [0, 0, 0, 0];
 
 // ---------- Song setup and chart ----------
 
+// The tempo climbs from the song's bpm toward a faster bpm by the last bar.
+// Fast songs climb less so their sixteenth-note patterns stay playable.
 function setupSong(song) {
   current = song;
-  BEAT = 60 / song.bpm;
-  BAR = BEAT * 4;
-  STEP = BAR / 8;
-  SONG_END = LEAD_IN + BARS * BAR + 1;
+  const ramp = song.bpm >= 170 ? 1.1 : 1.25;
+  barStart = [];
+  barLen = [];
+  let t = 0;
+  for (let bar = 0; bar < BARS; bar++) {
+    const bpm = song.bpm * (1 + (ramp - 1) * bar / (BARS - 1));
+    const len = (60 / bpm) * 4;
+    barStart.push(t);
+    barLen.push(len);
+    t += len;
+  }
+  SONG_END = LEAD_IN + t + 1;
+}
+
+// Index of the bar that contains time t (seconds from the lead-in).
+function barAt(t) {
+  let bar = 0;
+  while (bar < BARS - 1 && barStart[bar + 1] <= t) bar++;
+  return bar;
 }
 
 function buildChart() {
@@ -165,12 +181,12 @@ function buildChart() {
   for (let bar = 0; bar < BARS; bar++) {
     const pattern = current.patterns[current.section[bar % current.section.length]];
     // A pattern has 8 slots (eighth notes) or 16 slots (sixteenth notes) per bar.
-    const slotLen = BAR / pattern.length;
+    const slotLen = barLen[bar] / pattern.length;
     for (let slot = 0; slot < pattern.length; slot++) {
       const symbol = pattern[slot];
       if (symbol === '.') continue;
       chart.push({
-        time: LEAD_IN + bar * BAR + slot * slotLen,
+        time: LEAD_IN + barStart[bar] + slot * slotLen,
         lane: Number(symbol),
         judged: false,
       });
@@ -235,17 +251,19 @@ function noiseHit(a, t, dur, filterType, freq, vol) {
 
 function scheduleMusic(a, start) {
   for (let bar = 0; bar < BARS; bar++) {
-    const t0 = start + bar * BAR;
+    const t0 = start + barStart[bar];
+    const len = barLen[bar];
+    const step = len / 8;
     const chord = current.chords[bar % current.chords.length];
-    chord.pad.forEach(freq => voice(a, 'sine', freq, t0, BAR, 0.03));
+    chord.pad.forEach(freq => voice(a, 'sine', freq, t0, len, 0.03));
 
     for (let slot = 0; slot < 8; slot++) {
-      const t = t0 + slot * STEP;
+      const t = t0 + slot * step;
       if (slot % 4 === 0) kick(a, t);
       if (slot % 4 === 2) noiseHit(a, t, 0.15, 'bandpass', 1800, 0.5);
       noiseHit(a, t, 0.04, 'highpass', 7000, 0.15);
-      voice(a, 'triangle', slot % 4 === 2 ? chord.bass * 2 : chord.bass, t, STEP * 0.9, 0.3);
-      voice(a, 'square', chord.pad[slot % 3] * 2, t, STEP * 0.8, 0.025);
+      voice(a, 'triangle', slot % 4 === 2 ? chord.bass * 2 : chord.bass, t, step * 0.9, 0.3);
+      voice(a, 'square', chord.pad[slot % 3] * 2, t, step * 0.8, 0.025);
     }
   }
 }
@@ -460,8 +478,11 @@ function draw() {
   g2d.fillRect(0, 0, W, H);
 
   // Beat pulse on the lane background
-  const sinceBeat = (songTime - LEAD_IN) % BEAT;
-  const pulse = songTime >= LEAD_IN ? Math.max(0, 1 - sinceBeat / 0.15) : 0;
+  const musicTime = songTime - LEAD_IN;
+  const bar = barAt(Math.max(0, musicTime));
+  const beatLen = barLen[bar] / 4;
+  const sinceBeat = (Math.max(0, musicTime) - barStart[bar]) % beatLen;
+  const pulse = musicTime >= 0 ? Math.max(0, 1 - sinceBeat / 0.15) : 0;
   g2d.fillStyle = `rgba(194, 77, 255, ${0.04 + pulse * 0.08})`;
   g2d.fillRect(LANE_LEFT, 0, 4 * LANE_W, H);
 
@@ -574,6 +595,8 @@ function drawHud(now) {
   g2d.font = '14px system-ui, sans-serif';
   g2d.fillStyle = '#a99cc9';
   g2d.fillText(current.title, 20, 58);
+  const bar = barAt(Math.max(0, songTime - LEAD_IN));
+  g2d.fillText(`${Math.round(240 / barLen[bar])} BPM`, 20, 78);
 
   g2d.textAlign = 'right';
   g2d.fillStyle = '#f4f0ff';

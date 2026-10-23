@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neon Rush</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="stage">
+    <canvas id="game" width="800" height="600"></canvas>
+
+    <section id="menu" class="overlay">
+      <h1>NEON RUSH</h1>
+      <p class="subtitle">A rhythm game for Friday night</p>
+      <button id="play-btn" class="btn">Play</button>
+      <p class="help">Keys: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd> or arrow keys. Hit the notes on the line.</p>
+      <p class="help">Press <kbd>Esc</kbd> during a song to quit to the menu.</p>
+    </section>
+
+    <section id="results" class="overlay hidden">
+      <h2 id="result-title">Song Complete</h2>
+      <p class="rank">Rank <span id="rank">-</span></p>
+      <ul class="stats">
+        <li>Score <strong id="final-score">0</strong></li>
+        <li>Accuracy <strong id="final-acc">0%</strong></li>
+        <li>Max combo <strong id="final-combo">0</strong></li>
+      </ul>
+      <ul class="stats judgements">
+        <li class="sick">Sick <strong id="n-sick">0</strong></li>
+        <li class="good">Good <strong id="n-good">0</strong></li>
+        <li class="bad">Bad <strong id="n-bad">0</strong></li>
+        <li class="miss">Miss <strong id="n-miss">0</strong></li>
+      </ul>
+      <div class="row">
+        <button id="retry-btn" class="btn">Retry</button>
+        <button id="back-btn" class="btn ghost">Menu</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>

@@ -21,10 +21,10 @@ The game is static files, so it needs no build step.
 
 | Key            | Lane |
 | -------------- | ---- |
-| `D` / Left     | 1    |
-| `F` / Down     | 2    |
-| `J` / Up       | 3    |
-| `K` / Right    | 4    |
+| Left arrow     | 1    |
+| Down arrow     | 2    |
+| Up arrow       | 3    |
+| Right arrow    | 4    |
 
 - `Enter` starts the song from the menu or the results screen.
 - `Esc` quits to the menu during a song.

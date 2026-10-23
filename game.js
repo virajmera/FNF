@@ -7,13 +7,13 @@ const W = canvas.width;
 const H = canvas.height;
 
 const KEY_TO_LANE = {
-  KeyD: 0, ArrowLeft: 0,
-  KeyF: 1, ArrowDown: 1,
-  KeyJ: 2, ArrowUp: 2,
-  KeyK: 3, ArrowRight: 3,
+  ArrowLeft: 0,
+  ArrowDown: 1,
+  ArrowUp: 2,
+  ArrowRight: 3,
 };
 const LANE_COLORS = ['#c24dff', '#2fb8ff', '#3ddc6b', '#ff4d6d'];
-const LANE_LABELS = ['D', 'F', 'J', 'K'];
+const LANE_LABELS = ['←', '↓', '↑', '→'];
 
 // Song timing
 const SONG = { title: 'Neon Rush', bpm: 120 };

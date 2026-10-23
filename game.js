@@ -1,5 +1,5 @@
 // Neon Rush: an original rhythm game inspired by Friday Night Funkin'.
-// The song is synthesized with the Web Audio API, so the project ships no audio files.
+// The songs are synthesized with the Web Audio API, so the project ships no audio files.
 
 const canvas = document.getElementById('game');
 const g2d = canvas.getContext('2d');
@@ -13,18 +13,59 @@ const KEY_TO_LANE = {
   ArrowRight: 3,
 };
 const LANE_COLORS = ['#c24dff', '#2fb8ff', '#3ddc6b', '#ff4d6d'];
+const LANE_DARK = ['#4a1470', '#0a4670', '#0f5a2c', '#7a1a2e'];
 // Arrow rotation per lane: left, down, up, right (the arrow shape points up by default).
 const ARROW_ANGLES = [-Math.PI / 2, Math.PI, 0, Math.PI / 2];
 const ARROW_SHAPE = [[0, -1], [0.9, 0], [0.4, 0], [0.4, 1], [-0.4, 1], [-0.4, 0], [-0.9, 0]];
 
-// Song timing
-const SONG = { title: 'Neon Rush', bpm: 120 };
-const BEAT = 60 / SONG.bpm;   // 0.5 s
-const BAR = BEAT * 4;         // 2 s
-const STEP = BAR / 8;         // eighth note, 0.25 s
+// Songs. Each one has its own tempo, chord progression, and note patterns.
+const SONGS = [
+  {
+    title: 'Neon Rush',
+    bpm: 120,
+    chords: [
+      { bass: 110.0, pad: [220.0, 261.63, 329.63] },  // Am
+      { bass: 87.31, pad: [174.61, 220.0, 261.63] },  // F
+      { bass: 130.81, pad: [261.63, 329.63, 392.0] }, // C
+      { bass: 98.0, pad: [196.0, 246.94, 293.66] },   // G
+    ],
+    patterns: { A: '0.1.2.3.', B: '1.3.0.2.', C: '0.2.3.1.', D: '2.0.2.3.' },
+    section: ['A', 'B', 'A', 'C', 'A', 'B', 'D', 'C'],
+  },
+  {
+    title: 'Midnight Drift',
+    bpm: 96,
+    chords: [
+      { bass: 73.42, pad: [146.83, 174.61, 220.0] },   // Dm
+      { bass: 116.54, pad: [233.08, 293.66, 349.23] }, // Bb
+      { bass: 87.31, pad: [174.61, 220.0, 261.63] },   // F
+      { bass: 130.81, pad: [261.63, 329.63, 392.0] },  // C
+    ],
+    patterns: { A: '0...1.2.', B: '3.1.0...', C: '2.0.1...', D: '1.3.2.0.' },
+    section: ['A', 'B', 'A', 'C', 'A', 'D', 'B', 'C'],
+  },
+  {
+    title: 'Turbo Sunset',
+    bpm: 150,
+    chords: [
+      { bass: 82.41, pad: [164.81, 196.0, 246.94] },  // Em
+      { bass: 130.81, pad: [261.63, 329.63, 392.0] }, // C
+      { bass: 98.0, pad: [196.0, 246.94, 293.66] },   // G
+      { bass: 73.42, pad: [146.83, 185.0, 220.0] },   // D
+    ],
+    patterns: { A: '0.1.2.3.', B: '3.2.1.0.', C: '1.0.3.2.', D: '2.3.0.1.' },
+    section: ['A', 'B', 'C', 'A', 'D', 'B', 'A', 'C'],
+  },
+];
+
+// Timing for the selected song. setupSong() fills these in.
+let current = SONGS[0];
+let BEAT = 0.5;
+let BAR = 2;
+let STEP = 0.25;
+let SONG_END = 0;
 const LEAD_IN = 2;            // seconds before the first note
 const BARS = 32;
-const SONG_END = LEAD_IN + BARS * BAR + 1;
 
 // Play field. SPEED, STRUM_Y and LANE_LEFT depend on the window size, so resize() sets them.
 let SPEED = 450;              // pixels per second
@@ -32,7 +73,6 @@ let STRUM_Y = 500;
 let LANE_LEFT = 0;
 const LANE_W = 110;
 const ARROW_SIZE = 44;
-const NOTE_H = 34;
 
 const HIT_WINDOWS = { sick: 0.045, good: 0.09, bad: 0.135 };
 const JUDGE = {
@@ -42,23 +82,14 @@ const JUDGE = {
   miss: { points: 0, health: -6, weight: 0, color: '#ff4d6d' },
 };
 
-// Chord progression: Am, F, C, G. Each entry has a bass note and pad voicing.
-const CHORDS = [
-  { bass: 110.0, pad: [220.0, 261.63, 329.63] },  // Am
-  { bass: 87.31, pad: [174.61, 220.0, 261.63] },  // F
-  { bass: 130.81, pad: [261.63, 329.63, 392.0] }, // C
-  { bass: 98.0, pad: [196.0, 246.94, 293.66] },   // G
+// Combo streak tiers that turn on the fire. Each tier adds more flames.
+const FIRE_TIERS = [
+  { combo: 10, label: 'HOT', color: '#ffd166', rate: 18 },
+  { combo: 25, label: 'ON FIRE', color: '#ff9f1c', rate: 40 },
+  { combo: 50, label: 'INFERNO', color: '#ff3b1f', rate: 75 },
 ];
 
-// Note patterns, one bar each: eighth-note slots, digit = lane, '.' = rest.
-const PATTERNS = {
-  A: '0.1.2.3.',
-  B: '1.3.0.2.',
-  C: '0.2.3.1.',
-  D: '2.0.2.3.',
-};
-const SECTION = ['A', 'B', 'A', 'C', 'A', 'B', 'D', 'C'];
-
+let selected = 0;             // index into SONGS on the menu
 let audio = null;             // { ctx, master, noise, clockStart }
 let state = 'menu';           // 'menu' | 'playing' | 'results'
 let notes = [];
@@ -69,14 +100,24 @@ let maxCombo = 0;
 let health = 50;
 let counts = { sick: 0, good: 0, bad: 0, miss: 0 };
 let popup = null;
+let particles = [];
+let lastFrameMs = 0;
 const laneFlash = [0, 0, 0, 0];
 
-// ---------- Chart ----------
+// ---------- Song setup and chart ----------
+
+function setupSong(song) {
+  current = song;
+  BEAT = 60 / song.bpm;
+  BAR = BEAT * 4;
+  STEP = BAR / 8;
+  SONG_END = LEAD_IN + BARS * BAR + 1;
+}
 
 function buildChart() {
   const chart = [];
   for (let bar = 0; bar < BARS; bar++) {
-    const pattern = PATTERNS[SECTION[bar % SECTION.length]];
+    const pattern = current.patterns[current.section[bar % current.section.length]];
     for (let slot = 0; slot < 8; slot++) {
       const symbol = pattern[slot];
       if (symbol === '.') continue;
@@ -147,7 +188,7 @@ function noiseHit(a, t, dur, filterType, freq, vol) {
 function scheduleMusic(a, start) {
   for (let bar = 0; bar < BARS; bar++) {
     const t0 = start + bar * BAR;
-    const chord = CHORDS[bar % CHORDS.length];
+    const chord = current.chords[bar % current.chords.length];
     chord.pad.forEach(freq => voice(a, 'sine', freq, t0, BAR, 0.03));
 
     for (let slot = 0; slot < 8; slot++) {
@@ -165,6 +206,7 @@ function scheduleMusic(a, start) {
 
 function startSong() {
   if (audio) audio.ctx.close();
+  setupSong(SONGS[selected]);
   audio = createAudio();
   audio.clockStart = audio.ctx.currentTime + 0.1;
   scheduleMusic(audio, audio.clockStart + LEAD_IN);
@@ -176,6 +218,8 @@ function startSong() {
   health = 50;
   counts = { sick: 0, good: 0, bad: 0, miss: 0 };
   popup = null;
+  particles = [];
+  lastFrameMs = performance.now();
   state = 'playing';
   showOverlay(null);
   requestAnimationFrame(frame);
@@ -185,6 +229,7 @@ function showMenu() {
   state = 'menu';
   if (audio) audio.ctx.close();
   audio = null;
+  renderSongList();
   showOverlay('menu');
 }
 
@@ -199,6 +244,9 @@ function endSong(failed) {
 
 function frame() {
   if (state !== 'playing') return;
+  const nowMs = performance.now();
+  const dt = Math.min(0.05, (nowMs - lastFrameMs) / 1000);
+  lastFrameMs = nowMs;
   songTime = audio.ctx.currentTime - audio.clockStart;
 
   for (const note of notes) {
@@ -211,6 +259,8 @@ function frame() {
   if (health <= 0) return endSong(true);
   if (songTime > SONG_END) return endSong(false);
 
+  spawnFlames(dt);
+  updateParticles(dt);
   draw();
   requestAnimationFrame(frame);
 }
@@ -245,6 +295,95 @@ function onLanePressed(lane) {
   if (bestDiff <= HIT_WINDOWS.sick) judge('sick');
   else if (bestDiff <= HIT_WINDOWS.good) judge('good');
   else judge('bad');
+  spawnSparks(lane);
+}
+
+// ---------- Particles and fire ----------
+
+const MAX_PARTICLES = 700;
+
+function addParticle(p) {
+  if (particles.length < MAX_PARTICLES) particles.push(p);
+}
+
+// Flames rise from the strum line while a combo streak is active.
+function spawnFlames(dt) {
+  const level = fireLevel();
+  if (level === 0) return;
+  const rate = FIRE_TIERS[level - 1].rate;
+  for (let lane = 0; lane < 4; lane++) {
+    let count = Math.floor(rate * dt);
+    if (Math.random() < rate * dt - count) count++;
+    for (let i = 0; i < count; i++) {
+      const life = 0.45 + Math.random() * 0.5;
+      addParticle({
+        x: laneX(lane) + (Math.random() - 0.5) * ARROW_SIZE * 1.4,
+        y: STRUM_Y + ARROW_SIZE * 0.5,
+        vx: (Math.random() - 0.5) * 60,
+        vy: -(140 + Math.random() * 180) * (1 + 0.2 * level),
+        life,
+        maxLife: life,
+        size: 7 + Math.random() * 8 + level * 2,
+        color: null,
+      });
+    }
+  }
+}
+
+// A burst of sparks from a receptor on each hit.
+function spawnSparks(lane) {
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 80 + Math.random() * 180;
+    const life = 0.3 + Math.random() * 0.2;
+    addParticle({
+      x: laneX(lane),
+      y: STRUM_Y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life,
+      maxLife: life,
+      size: 4,
+      color: LANE_COLORS[lane],
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+function fireColor(t) {
+  if (t > 0.66) return '#fff3a0';
+  if (t > 0.33) return '#ff9f1c';
+  return '#ff3b1f';
+}
+
+function drawParticles() {
+  g2d.globalCompositeOperation = 'lighter';
+  for (const p of particles) {
+    const t = p.life / p.maxLife;
+    g2d.globalAlpha = Math.min(1, t * 1.5);
+    g2d.fillStyle = p.color || fireColor(t);
+    g2d.beginPath();
+    g2d.arc(p.x, p.y, p.size * (0.4 + 0.6 * t), 0, Math.PI * 2);
+    g2d.fill();
+  }
+  g2d.globalAlpha = 1;
+  g2d.globalCompositeOperation = 'source-over';
+}
+
+function fireLevel() {
+  let level = 0;
+  FIRE_TIERS.forEach((tier, i) => {
+    if (combo >= tier.combo) level = i + 1;
+  });
+  return level;
 }
 
 // ---------- Rendering ----------
@@ -284,28 +423,45 @@ function draw() {
     g2d.fillRect(LANE_LEFT + i * LANE_W, 0, LANE_W, H);
   }
 
+  drawOnFireGlow();
+
   // Receptors on the strum line
   for (let lane = 0; lane < 4; lane++) {
-    const flashing = now - laneFlash[lane] < 100;
-    drawArrow(lane, STRUM_Y, flashing ? LANE_COLORS[lane] : 'rgba(255, 255, 255, 0.08)', LANE_COLORS[lane]);
+    const lit = now - laneFlash[lane] < 100;
+    drawArrow(lane, STRUM_Y, { textured: lit, glow: lit ? 28 : 0, outline: LANE_COLORS[lane] });
   }
 
   // Falling notes
+  const level = fireLevel();
   for (const note of notes) {
     if (note.judged) continue;
     const y = STRUM_Y - (note.time - songTime) * SPEED;
     if (y < -ARROW_SIZE || y > H + ARROW_SIZE) continue;
-    drawArrow(note.lane, y, LANE_COLORS[note.lane], '#ffffff');
+    drawArrow(note.lane, y, { textured: true, glow: level > 0 ? 22 : 10, outline: 'rgba(255, 255, 255, 0.7)' });
   }
 
+  drawParticles();
   drawHud(now);
+}
+
+// Warm glow along the bottom of the screen once the combo is hot.
+function drawOnFireGlow() {
+  const level = fireLevel();
+  if (level < 2) return;
+  const glowH = H * 0.35;
+  const grad = g2d.createLinearGradient(0, H - glowH, 0, H);
+  grad.addColorStop(0, 'rgba(255, 90, 20, 0)');
+  grad.addColorStop(1, `rgba(255, 90, 20, ${level === 2 ? 0.18 : 0.3})`);
+  g2d.fillStyle = grad;
+  g2d.fillRect(0, H - glowH, W, glowH);
 }
 
 function laneX(lane) {
   return LANE_LEFT + lane * LANE_W + LANE_W / 2;
 }
 
-function drawArrow(lane, y, fill, stroke) {
+// Draws one arrow. Textured arrows get a metallic gradient, a shine line, and an optional glow.
+function drawArrow(lane, y, { textured, glow, outline }) {
   g2d.save();
   g2d.translate(laneX(lane), y);
   g2d.rotate(ARROW_ANGLES[lane]);
@@ -315,11 +471,33 @@ function drawArrow(lane, y, fill, stroke) {
     else g2d.lineTo(x * ARROW_SIZE, py * ARROW_SIZE);
   });
   g2d.closePath();
-  g2d.fillStyle = fill;
+
+  if (textured) {
+    const grad = g2d.createLinearGradient(0, -ARROW_SIZE, 0, ARROW_SIZE);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.35, LANE_COLORS[lane]);
+    grad.addColorStop(1, LANE_DARK[lane]);
+    g2d.fillStyle = grad;
+  } else {
+    g2d.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  }
+  g2d.shadowColor = LANE_COLORS[lane];
+  g2d.shadowBlur = glow;
   g2d.fill();
-  g2d.strokeStyle = stroke;
+  g2d.shadowBlur = 0;
+
+  g2d.strokeStyle = outline;
   g2d.lineWidth = 3;
   g2d.stroke();
+
+  if (textured) {
+    g2d.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    g2d.lineWidth = 2;
+    g2d.beginPath();
+    g2d.moveTo(0, -ARROW_SIZE * 0.6);
+    g2d.lineTo(0, ARROW_SIZE * 0.5);
+    g2d.stroke();
+  }
   g2d.restore();
 }
 
@@ -347,22 +525,24 @@ function drawHud(now) {
   g2d.fillText(`Score ${score}`, 20, 36);
   g2d.font = '14px system-ui, sans-serif';
   g2d.fillStyle = '#a99cc9';
-  g2d.fillText(SONG.title, 20, 58);
+  g2d.fillText(current.title, 20, 58);
 
   g2d.textAlign = 'right';
   g2d.fillStyle = '#f4f0ff';
   g2d.font = '700 18px system-ui, sans-serif';
   g2d.fillText(`${accuracy().toFixed(1)}%`, W - 20, 36);
 
-  // Combo
+  // Combo, with a fire label that changes as the streak grows
   if (combo >= 2) {
+    const level = fireLevel();
+    const tier = level > 0 ? FIRE_TIERS[level - 1] : null;
     g2d.textAlign = 'center';
-    g2d.fillStyle = '#ffffff';
+    g2d.fillStyle = tier ? tier.color : '#ffffff';
     g2d.font = '800 46px system-ui, sans-serif';
     g2d.fillText(String(combo), W / 2, 190);
     g2d.font = '600 14px system-ui, sans-serif';
-    g2d.fillStyle = '#a99cc9';
-    g2d.fillText('COMBO', W / 2, 212);
+    g2d.fillStyle = tier ? tier.color : '#a99cc9';
+    g2d.fillText(tier ? tier.label : 'COMBO', W / 2, 212);
   }
 
   // Judgement popup
@@ -399,9 +579,34 @@ function showOverlay(name) {
   }
 }
 
+// Builds the song buttons. Clicking one starts that song.
+function renderSongList() {
+  const list = document.getElementById('song-list');
+  list.innerHTML = '';
+  SONGS.forEach((song, i) => {
+    const button = document.createElement('button');
+    button.className = 'song-btn' + (i === selected ? ' selected' : '');
+    const title = document.createElement('span');
+    title.textContent = song.title;
+    const bpm = document.createElement('small');
+    bpm.textContent = `${song.bpm} BPM`;
+    button.append(title, bpm);
+    button.addEventListener('click', () => {
+      selected = i;
+      startSong();
+    });
+    list.appendChild(button);
+  });
+}
+
+function moveSelection(step) {
+  selected = (selected + step + SONGS.length) % SONGS.length;
+  renderSongList();
+}
+
 function showResults(failed) {
   const acc = accuracy();
-  document.getElementById('result-title').textContent = failed ? 'Failed' : 'Song Complete';
+  document.getElementById('result-title').textContent = failed ? 'Failed' : `${current.title} Complete`;
   document.getElementById('rank').textContent = failed ? 'F' : rankFor(acc);
   document.getElementById('final-score').textContent = score;
   document.getElementById('final-acc').textContent = `${acc.toFixed(1)}%`;
@@ -428,14 +633,25 @@ window.addEventListener('keydown', event => {
     return;
   }
 
+  if (state === 'menu') {
+    if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
+      event.preventDefault();
+      moveSelection(event.code === 'ArrowUp' ? -1 : 1);
+    } else if (event.code === 'Enter') {
+      event.preventDefault();
+      startSong();
+    }
+    return;
+  }
+
   if (event.code === 'Enter') {
     event.preventDefault();
     startSong();
-  } else if (event.code === 'Escape' && state === 'results') {
+  } else if (event.code === 'Escape') {
     showMenu();
   }
 });
 
-document.getElementById('play-btn').addEventListener('click', startSong);
 document.getElementById('retry-btn').addEventListener('click', startSong);
 document.getElementById('back-btn').addEventListener('click', showMenu);
+renderSongList();

@@ -88,6 +88,33 @@ h2 { margin: 0; font-size: 36px; }
 
 .row { display: flex; gap: 12px; }
 
+.song-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(380px, 90%);
+}
+
+.song-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.song-btn small { color: var(--muted); font-size: 14px; }
+
+.song-btn.selected {
+  border-color: var(--accent);
+  background: rgba(194, 77, 255, 0.18);
+}
+
 .btn {
   padding: 12px 34px;
   border: 0;
